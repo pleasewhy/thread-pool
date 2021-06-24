@@ -1,3 +1,4 @@
+#include "include/process_pool.hpp"
 #include "include/thread_pool.hpp"
 #include <functional>
 #include <future>
@@ -17,7 +18,16 @@ public:
   void test() { cout << "test methods" << endl; }
 };
 
-int main() {
+void TestProcessPool() {
+  ProcessPool pool(5);
+  pool.RegisterHander(1, print);
+  for (int i = 0; i < 10; i++) {
+    pool.Execute(1);
+  }
+  pool.Shutdown();
+}
+
+void TestThreadPool() {
   ThreadPool pool(5);
   for (int i = 0; i < 10; i++) {
     try {
@@ -28,5 +38,9 @@ int main() {
     }
   }
   pool.Shutdown();
+}
+
+int main() {
+  TestProcessPool();
   return 0;
 }
