@@ -13,10 +13,27 @@ int add(int a, int b) { return a + b; }
 
 void print() { cout << "test function" << endl; }
 
-class Test {
-public:
-  void test() { cout << "test methods" << endl; }
-};
+bool IsPrime(int n) {
+  if (n <= 3) {
+    return n > 2;
+  }
+  for (int i = 2; i < n; i++) {
+    if (n % i == 0) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// 2-1000
+void CpuIntensiveTest1(){
+
+}
+
+// 1000-100000
+void CpuIntensiveTest2(){
+
+}
 
 void TestProcessPool() {
   ProcessPool pool(5);

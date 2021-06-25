@@ -1,5 +1,6 @@
 #ifndef PROCESS_POOL_HPP
 #define PROCESS_POOL_HPP
+#include "run_timer.hpp"
 #include <cstring>
 #include <future>
 #include <iostream>
@@ -86,15 +87,8 @@ public:
       return true;
     }
     lock_guard<mutex> lock(workers_lock_);
-    for (; select_cnt_ < worker_num_; select_cnt_++) {
-      if (workers_[select_cnt_] == nullptr) {
-        continue;
-      }
-      if (Send2Child(select_cnt_, &id, sizeof(id)) != sizeof(id)) {
-        printf("error");
-        return false;
-      }
-    }
+    Send2Child(select_cnt_, &id, sizeof(id));
+    select_cnt_ = (select_cnt_ + 1) % core_pool_size_;
     return true;
   }
 
@@ -114,15 +108,15 @@ public:
   }
 
   void Shutdown() {
-    printf("shut down\n");
     for (int i = 0; i < worker_num_; i++) {
       Send2Child(i, &kProcessExit, sizeof(kProcessExit));
-      CloseWriteEnd(i);
+      // CloseWriteEnd(i);
       wait(0);
     }
   }
 
   int Send2Child(int idx, const void *buf, int n) {
+    // printf("send to child=%d\n",idx);
     return write(workers_[idx]->parent2child_[1], buf, n);
   }
 
@@ -150,13 +144,20 @@ void WorkerProcess::DoWork(HandlerId hander_id) {
 
 void WorkerProcess::WaitService() {
   HandlerId handler_id;
+  int tasks = 0;
+  RunTimer timer;
+  int run_task_time = 0;
   while (read(parent2child_[0], &handler_id, sizeof(handler_id)) ==
          sizeof(handler_id)) {
     if (handler_id == kProcessExit) {
-      printf("worker id=%d exit\n", worker_id_);
+      printf("worker=%d, completed task=%d run task time=%dms\n", worker_id_,
+             tasks, run_task_time);
       exit(0);
     } else {
+      timer.start();
       DoWork(handler_id);
+      run_task_time += timer.ElapseMs();
+      tasks++;
     }
   }
   exit(-1);

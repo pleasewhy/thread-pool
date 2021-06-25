@@ -1,5 +1,6 @@
 #ifndef THREAD_POOL_HPP
 #define THREAD_POOL_HPP
+#include "run_timer.hpp"
 #include <future>
 #include <iostream>
 #include <memory>
@@ -10,6 +11,7 @@
 
 using namespace std;
 using namespace std::placeholders;
+
 typedef std::function<void()> Runnable;
 
 class ThreadPool;
@@ -38,7 +40,6 @@ class ThreadPool {
 
 public:
   ThreadPool(int worker_num) { this->core_pool_size_ = worker_num; }
-  ~ThreadPool() {}
 
   /**
    * @brief 在未来的某个时间执行给定的任务。该任务可以
@@ -103,13 +104,17 @@ public:
 
   void RunWorker(Worker *worker) {
     Runnable task = worker->first_task;
+    RunTimer timer;
+    int run_task_time = 0;
     while (task != nullptr || (task = GetTask()) != nullptr) {
+      timer.start();
       task();
+      run_task_time += timer.ElapseMs();
       worker->completed_task++;
       task = nullptr;
     }
-    printf("worker=%d, complete tasks=%d\n", worker->worker_id,
-           worker->completed_task);
+    printf("worker=%d, complete tasks=%d run task time=%dms\n",
+           worker->worker_id, worker->completed_task,run_task_time);
   }
 
   /**
@@ -134,17 +139,20 @@ public:
   void Shutdown() {
     stop = true;
     cv_.notify_all();
+    for(int i=0;i<worker_num_;i++){
+      workers_[i]->my_thread->join();
+    }
   }
 
 private:
-  std::mutex tasks_lock_;
-  std::mutex workers_lock_;
-  std::condition_variable cv_;
-  std::vector<unique_ptr<Worker>> workers_;
-  std::queue<Runnable> task_queue_;
+  mutex tasks_lock_;
+  mutex workers_lock_;
+  condition_variable cv_;
+  vector<unique_ptr<Worker>> workers_;
+  queue<Runnable> task_queue_;
   int core_pool_size_;
-  std::atomic<int> worker_num_{0};
-  std::atomic<bool> stop{false};
+  atomic<int> worker_num_{0};
+  atomic<bool> stop{false};
 };
 
 Worker::Worker(ThreadPool *pool, Runnable first_task)
@@ -156,5 +164,6 @@ void Worker::run() {
   my_thread =
       new thread(bind(&ThreadPool::RunWorker, _1, _2), thread_pool_, this);
 }
-Worker::~Worker() { my_thread->join(); }
+
+Worker::~Worker() { }
 #endif
